@@ -11,7 +11,7 @@ The app is designed for acquisition agents who are walking through properties in
 Paste hosted app link here:
 
 ```text
-[Live demo URL]
+[[Live demo URL]](https://spark-homes-repair-cost-estimator.vercel.app/)
 ```
 
 ## GitHub Repository
@@ -19,7 +19,7 @@ Paste hosted app link here:
 Paste repository link here:
 
 ```text
-[GitHub repository URL]
+[[GitHub repository URL](https://github.com/kinturkt/Spark-Homes-Repair-Cost-Estimator)]
 ```
 
 ## Files Included
