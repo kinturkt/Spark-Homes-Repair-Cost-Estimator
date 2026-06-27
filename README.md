@@ -12,7 +12,7 @@ The app is designed for acquisition agents who are walking through properties in
 
 ## Repository
 
-(https://github.com/kinturkt/Spark-Homes-Repair-Cost-Estimator)
+[(https://github.com/kinturkt/Spark-Homes-Repair-Cost-Estimator)]
 
 ## Main Deliverable
 
