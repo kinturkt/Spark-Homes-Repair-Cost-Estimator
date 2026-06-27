@@ -225,6 +225,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .empty-icon{font-size:40px;margin-bottom:8px}
 .empty-title{font-size:15px;font-weight:600;color:var(--text2);margin-bottom:4px}
 .empty-sub{font-size:13px}
+
+.notes-card{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:12px 14px;margin-bottom:12px;box-shadow:var(--shadow-sm)}
+.notes-textarea{width:100%;min-height:84px;border:1px solid var(--border);border-radius:9px;padding:10px 12px;font-size:14px;line-height:1.4;color:var(--text);background:var(--surface2);outline:none;resize:vertical;font-family:inherit;-webkit-appearance:none}
+.notes-textarea:focus{border-color:var(--brand);background:var(--surface)}
+.helper-note{font-size:11px;color:var(--text3);margin-top:6px}
+.disabled-item{opacity:.48}
+
 </style>
 </head>
 <body>
@@ -487,15 +494,52 @@ const SECTIONS = [
 
 const ROOM_TEMPLATES = {
   bathroom:{
-    label:"Bathroom", icon:"🚿",
+    label:"Bathroom", icon:"\u{1F6BF}",
     groups:[
       {id:"vanity", label:"Vanity & Countertop", itemIds:["ba-01","ba-02","ba-03","ba-04","ba-14","ba-15","ba-16"]},
       {id:"tub_shower", label:"Tub & Shower", itemIds:["ba-07","ba-08","ba-09","ba-10","ba-11","ba-12","ba-13"]},
       {id:"bath_tile", label:"Tile", itemIds:["ba-05","ba-06"]}
     ]
   },
+  kitchen:{
+    label:"Kitchen", icon:"\u{1F373}",
+    groups:[
+      {id:"cabinets", label:"Cabinets", itemIds:["kt-01","kt-02","kt-03","kt-04","kt-05","kt-08"]},
+      {id:"countertops_tile", label:"Countertops & Tile", itemIds:["kt-06","kt-07","kt-09","kt-10","kt-11"]},
+      {id:"appliances", label:"Appliances", itemIds:["kt-12","kt-13","kt-14","kt-15","kt-16","kt-17"]}
+    ]
+  },
+  interior:{
+    label:"Interior / General", icon:"\u{1F3E0}",
+    groups:[
+      {id:"flooring", label:"Flooring", itemIds:["ig-01","ig-02","ig-03","ig-04","ig-05","ig-06"]},
+      {id:"paint_wall", label:"Paint & Wall Repair", itemIds:["ig-07","ig-08","ig-09"]},
+      {id:"doors", label:"Doors", itemIds:["ig-10","ig-11","ig-12","ig-13","ig-14","ig-15","ig-16","ig-17","ig-18","ig-19"]},
+      {id:"pest", label:"Pest Control", itemIds:["ig-23","ig-24"]},
+      {id:"general_misc", label:"General / Misc", itemIds:["ig-20","ig-21","ig-22","ig-25","ig-26","ig-27","ig-28"]}
+    ]
+  },
+  systems:{
+    label:"Systems & Structure", icon:"\u26A1",
+    groups:[
+      {id:"hvac", label:"HVAC", itemIds:["as-01","as-02","as-03","as-04","as-05","as-06","as-07","as-08","as-09"]},
+      {id:"electrical", label:"Electrical", itemIds:["as-10","as-11","as-18","as-19","as-20","as-24"]},
+      {id:"structural", label:"Structural", itemIds:["as-12","as-13","as-14","as-15","as-16","as-17"]},
+      {id:"insulation_drywall", label:"Insulation & Drywall", itemIds:["as-21","as-22","as-23"]}
+    ]
+  },
+  exterior:{
+    label:"Exterior", icon:"\u{1F33F}",
+    groups:[
+      {id:"fence", label:"Fence", itemIds:["ex-01","ex-02","ex-03"]},
+      {id:"siding", label:"Siding", itemIds:["ex-05","ex-06","ex-07","ex-08","ex-09"]},
+      {id:"windows_ext", label:"Windows", itemIds:["ex-13","ex-14","ex-15","ex-16","ex-17","ex-18"]},
+      {id:"garage", label:"Garage", itemIds:["ex-21","ex-22","ex-23"]},
+      {id:"trees", label:"Trees", itemIds:["ex-04","ex-10","ex-11","ex-12","ex-19","ex-20"]}
+    ]
+  },
   bedroom:{
-    label:"Bedroom", icon:"🛏",
+    label:"Bedroom", icon:"\u{1F6CF}",
     groups:[
       {id:"flooring", label:"Flooring", itemIds:["ig-01","ig-05","ig-06"]},
       {id:"paint_wall", label:"Paint", itemIds:["ig-07","ig-08"]},
@@ -504,7 +548,7 @@ const ROOM_TEMPLATES = {
     ]
   },
   living:{
-    label:"Living / Common", icon:"🛋",
+    label:"Living / Common", icon:"\u{1F6CB}",
     groups:[
       {id:"flooring", label:"Flooring", itemIds:["ig-01","ig-03","ig-05","ig-06"]},
       {id:"paint_wall", label:"Paint", itemIds:["ig-07","ig-08","ig-09"]},
@@ -524,20 +568,65 @@ let DB = {
 function getProject(id) { return DB.projects.find(p=>p.id===(id||DB.activeProjectId)); }
 function activeProject() { return getProject(DB.activeProjectId); }
 
+
+function ensureProjectShape(p) {
+  if (!p) return p;
+  if (!p.items) p.items = {};
+  if (!p.noAction) p.noAction = {};
+  if (!p.customItems) p.customItems = {};
+  if (!Array.isArray(p.rooms)) p.rooms = [];
+  if (!Array.isArray(p.photos)) p.photos = [];
+  if (!p.notes || typeof p.notes !== "object" || Array.isArray(p.notes)) p.notes = { project: p.notes ? String(p.notes) : "" };
+  if (typeof p.notes.project !== "string") p.notes.project = p.notes.project ? String(p.notes.project) : "";
+  if (!p._deletedItems) p._deletedItems = {};
+  if (!p.created) p.created = new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+  return p;
+}
+function ensureDBShape() {
+  if (!DB || !Array.isArray(DB.projects)) DB = {projects:[],activeProjectId:null,globalPriceOverrides:{},theme:"light"};
+  if (!DB.globalPriceOverrides) DB.globalPriceOverrides = {};
+  DB.projects.forEach(ensureProjectShape);
+}
+function isDeleted(proj, groupKey, itemId) {
+  const deleted = proj?._deletedItems?.[groupKey];
+  return Array.isArray(deleted) && deleted.includes(itemId);
+}
+function splitItemKey(itemKey) {
+  const i = itemKey.lastIndexOf(":");
+  return {groupKey:itemKey.slice(0,i), itemId:itemKey.slice(i+1)};
+}
+function getProjectNotes(proj) {
+  ensureProjectShape(proj);
+  return proj?.notes?.project || "";
+}
+function setProjectNotes(value) {
+  const proj = activeProject();
+  if (!proj) return;
+  ensureProjectShape(proj);
+  proj.notes.project = value || "";
+  save();
+}
+function sanitizeFileName(name) {
+  return String(name || "spark_project").replace(/[^a-z0-9_-]+/gi,"_").replace(/^_+|_+$/g,"") || "spark_project";
+}
+
+
 function newProject(name) {
+  const id = Date.now().toString();
   return {
-    id: Date.now().toString(),
+    id,
     name: name || "New project",
     created: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}),
     items: {},       // key: "groupKey:itemId" → {qty, costOverride}
     noAction: {},    // key: groupKey → bool
     customItems: {}, // key: groupKey → [{id,name,cost,unit,qty}]
-    rooms: [],       // [{type, label, num}]
+    rooms: [{id:id+"_bath1", type:"bathroom", label:"Bathroom 1", num:1}],       // [{type, label, num}]
     photos: [],      // [{dataUrl, serial?}]
     arv: 200000,
     margin: 70,
     asking: 0,
-    notes: {}
+    notes: { project: "" },
+    _deletedItems: {}
   };
 }
 
@@ -547,32 +636,35 @@ let _addItemGroupKey = null;
 
 
 function save() {
-  try { localStorage.setItem("spark_db_v2", JSON.stringify(DB)); } catch(e){}
+  try { localStorage.setItem("spark_db_v3", JSON.stringify(DB)); } catch(e){}
 }
 
 function load() {
   try {
-    const raw = localStorage.getItem("spark_db_v2");
+    const raw = localStorage.getItem("spark_db_v3") || localStorage.getItem("spark_db_v2");
     if (raw) DB = JSON.parse(raw);
   } catch(e){}
-  if (!DB.projects) DB = {projects:[],activeProjectId:null,globalPriceOverrides:{},theme:"light"};
-  if (!DB.globalPriceOverrides) DB.globalPriceOverrides = {};
+  ensureDBShape();
   if (!DB.projects.length) {
     const p = newProject("123 Main St, Tulsa OK");
     DB.projects.push(p);
     DB.activeProjectId = p.id;
   }
   if (!DB.activeProjectId && DB.projects.length) DB.activeProjectId = DB.projects[0].id;
+  ensureDBShape();
+  save();
 }
 
+function resolvePriceForProject(proj, itemId, groupKey) {
+  const itemKey = groupKey+":"+itemId;
+  if (proj && proj.items && proj.items[itemKey]?.costOverride != null) return Number(proj.items[itemKey].costOverride) || 0;
+  if (DB.globalPriceOverrides && DB.globalPriceOverrides[itemId] != null) return Number(DB.globalPriceOverrides[itemId]) || 0;
+  const base = PRICE_LIST_RAW.find(i=>i.id===itemId);
+  return base ? Number(base.cost) || 0 : 0;
+}
 
 function resolvePrice(itemId, groupKey) {
-  const proj = activeProject();
-  const itemKey = groupKey+":"+itemId;
-  if (proj && proj.items[itemKey]?.costOverride != null) return proj.items[itemKey].costOverride;
-  if (DB.globalPriceOverrides[itemId] != null) return DB.globalPriceOverrides[itemId];
-  const base = PRICE_LIST_RAW.find(i=>i.id===itemId);
-  return base ? base.cost : 0;
+  return resolvePriceForProject(activeProject(), itemId, groupKey);
 }
 
 function getItemDef(itemId) { return PRICE_LIST_RAW.find(i=>i.id===itemId); }
@@ -581,16 +673,17 @@ function getItemDef(itemId) { return PRICE_LIST_RAW.find(i=>i.id===itemId); }
 function calcTotal() {
   const proj = activeProject();
   if (!proj) return 0;
+  ensureProjectShape(proj);
   let total = 0;
-  Object.entries(proj.items).forEach(([key,v])=>{
+  Object.entries(proj.items||{}).forEach(([key,v])=>{
     if (!v.checked) return;
-    const [gk, itemId] = key.split(":");
-    const cost = v.costOverride != null ? v.costOverride : resolvePrice(itemId, gk);
-    total += (v.qty||1)*cost;
+    const {groupKey, itemId} = splitItemKey(key);
+    if (isDeleted(proj, groupKey, itemId)) return;
+    const cost = v.costOverride != null ? Number(v.costOverride) || 0 : resolvePriceForProject(proj, itemId, groupKey);
+    total += (Number(v.qty)||1)*cost;
   });
-
   Object.values(proj.customItems||{}).forEach(arr=>{
-    arr.forEach(ci=>{ if(ci.checked) total += (ci.qty||1)*ci.cost; });
+    (arr||[]).forEach(ci=>{ if(ci.checked) total += (Number(ci.qty)||1)*(Number(ci.cost)||0); });
   });
   return total;
 }
@@ -601,11 +694,16 @@ function fmtD(n) { return "$"+fmt(n); }
 function calcProgress() {
   const proj = activeProject();
   if (!proj) return {done:0,total:0};
+  ensureProjectShape(proj);
   const allGroups = getAllGroups();
   let done = 0, total = allGroups.length;
   allGroups.forEach(({groupKey})=>{
-    const na = proj.noAction[groupKey];
-    const hasChecked = Object.entries(proj.items).some(([k,v])=>k.startsWith(groupKey+":")&&v.checked);
+    const na = !!proj.noAction[groupKey];
+    const hasChecked = Object.entries(proj.items||{}).some(([k,v])=>{
+      if (!k.startsWith(groupKey+":") || !v.checked) return false;
+      const {itemId} = splitItemKey(k);
+      return !isDeleted(proj, groupKey, itemId);
+    });
     const hasCustChecked = (proj.customItems[groupKey]||[]).some(ci=>ci.checked);
     if (na || hasChecked || hasCustChecked) done++;
   });
@@ -653,20 +751,25 @@ function updateProgress() {
 
 function renderEstimate(area) {
   const proj = activeProject();
-  if (!proj) { area.innerHTML = "<div class='empty'><div class='empty-icon'>📋</div><div class='empty-title'>No project selected</div></div>"; return; }
+  if (!proj) { area.innerHTML = "<div class='empty'><div class='empty-icon'>\uD83D\uDCCB</div><div class='empty-title'>No project selected</div></div>"; return; }
+  ensureProjectShape(proj);
   let html = "";
 
-  // Property header
   html += `<div style="margin-bottom:12px">
     <div style="font-size:17px;font-weight:800;letter-spacing:-.3px">${esc(proj.name)}</div>
     <div style="font-size:11px;color:var(--text3)">${proj.created} · ${fmtD(calcTotal())} estimated</div>
+  </div>`;
+
+  html += `<div class="notes-card">
+    <div class="field-label">Walkthrough notes</div>
+    <textarea class="notes-textarea" placeholder="Add scope notes, property condition, access details, or contractor follow-up..." oninput="setProjectNotes(this.value)">${esc(getProjectNotes(proj))}</textarea>
+    <div class="helper-note">Notes save locally with this project and are included in the Excel export.</div>
   </div>`;
 
   SECTIONS.forEach(sec=>{
     html += renderSection(proj, sec, sec.id);
   });
 
-  // Room sections
   (proj.rooms||[]).forEach(room=>{
     const tpl = ROOM_TEMPLATES[room.type];
     if (!tpl) return;
@@ -705,17 +808,19 @@ function renderSection(proj, sec, sectionKey) {
 }
 
 function renderGroup(proj, grp, groupKey, sec) {
-  const noAction = proj.noAction[groupKey];
+  ensureProjectShape(proj);
+  const noAction = !!proj.noAction[groupKey];
   let grpTotal = 0;
   let itemsHtml = "";
 
   grp.itemIds.forEach(itemId=>{
+    if (isDeleted(proj, groupKey, itemId)) return;
     const def = getItemDef(itemId);
     if (!def) return;
     const itemKey = groupKey+":"+itemId;
     const st = proj.items[itemKey]||{};
-    const cost = st.costOverride != null ? st.costOverride : resolvePrice(itemId, groupKey);
-    const qty = st.qty||1;
+    const cost = st.costOverride != null ? Number(st.costOverride) || 0 : resolvePriceForProject(proj, itemId, groupKey);
+    const qty = Number(st.qty)||1;
     const lineTotal = st.checked ? qty*cost : 0;
     grpTotal += lineTotal;
 
@@ -730,28 +835,29 @@ function renderGroup(proj, grp, groupKey, sec) {
       </div>
       <div class="line-inputs">
         <input class="qty-input" type="number" inputmode="decimal" min="0" step="any" value="${qty}" onchange="setQty('${itemKey}',this.value)">
-        ${st.checked ? `<div class="line-total">${fmtD(lineTotal)}</div>` : `<div class="line-total" style="color:var(--text3)">—</div>`}
+        ${st.checked ? `<div class="line-total">${fmtD(lineTotal)}</div>` : `<div class="line-total" style="color:var(--text3)">-</div>`}
       </div>
-      <button class="del-btn" onclick="deleteItem('${groupKey}','${itemId}')" title="Remove">✕</button>
+      <button class="del-btn" onclick="deleteItem('${groupKey}','${itemId}')" title="Remove">x</button>
     </div>`;
   });
 
-  // Custom items
   const customs = proj.customItems[groupKey]||[];
   customs.forEach((ci,ci_idx)=>{
-    const lineTotal = ci.checked ? (ci.qty||1)*ci.cost : 0;
+    const qty = Number(ci.qty)||1;
+    const cost = Number(ci.cost)||0;
+    const lineTotal = ci.checked ? qty*cost : 0;
     grpTotal += lineTotal;
-    itemsHtml += `<div class="line-item">
+    itemsHtml += `<div class="line-item ${noAction?"disabled-item":""}">
       <div class="line-check ${ci.checked?"on":""}" onclick="toggleCustomItem('${groupKey}',${ci_idx})"></div>
       <div class="line-info">
         <div class="line-name">${esc(ci.name)} <span class="badge badge-brand" style="font-size:9px">custom</span></div>
-        <div class="line-unit-cost">${fmtD(ci.cost)}/${esc(ci.unit||"ea.")}</div>
+        <div class="line-unit-cost">${fmtD(cost)}/${esc(ci.unit||"ea.")}</div>
       </div>
       <div class="line-inputs">
-        <input class="qty-input" type="number" inputmode="decimal" min="0" step="any" value="${ci.qty||1}" onchange="setCustomQty('${groupKey}',${ci_idx},this.value)">
-        ${ci.checked ? `<div class="line-total">${fmtD(lineTotal)}</div>` : `<div class="line-total" style="color:var(--text3)">—</div>`}
+        <input class="qty-input" type="number" inputmode="decimal" min="0" step="any" value="${qty}" onchange="setCustomQty('${groupKey}',${ci_idx},this.value)">
+        ${ci.checked ? `<div class="line-total">${fmtD(lineTotal)}</div>` : `<div class="line-total" style="color:var(--text3)">-</div>`}
       </div>
-      <button class="del-btn" onclick="deleteCustomItem('${groupKey}',${ci_idx})">✕</button>
+      <button class="del-btn" onclick="deleteCustomItem('${groupKey}',${ci_idx})">x</button>
     </div>`;
   });
 
@@ -759,14 +865,14 @@ function renderGroup(proj, grp, groupKey, sec) {
   const html = `
   <div class="card ${openState?"open":""}" id="card_${groupKey}">
     <div class="card-header" onclick="toggleCard('grp_${groupKey}','card_${groupKey}')">
-      <div class="card-icon" style="background:${sec.bg||"#f0f0f0"};color:${sec.color||"#333"}">${sec.icon||"🔧"}</div>
+      <div class="card-icon" style="background:${sec.bg||"#f0f0f0"};color:${sec.color||"#333"}">${sec.icon||"*"}</div>
       <div class="card-info">
         <div class="card-name">${esc(grp.label)}</div>
-        <div class="card-sub">${noAction?"✓ No action needed":grpTotal>0?fmtD(grpTotal)+" added":""}</div>
+        <div class="card-sub">${noAction?"No action needed":grpTotal>0?fmtD(grpTotal)+" added":""}</div>
       </div>
       <div class="card-right">
         <div class="card-total ${grpTotal>0?"nonzero":""}">${grpTotal>0?fmtD(grpTotal):""}</div>
-        <div class="chevron">▼</div>
+        <div class="chevron">v</div>
       </div>
     </div>
     <div class="card-body">
@@ -788,14 +894,16 @@ function renderGroup(proj, grp, groupKey, sec) {
 
 function renderRooms(area) {
   const proj = activeProject();
-  const rooms = proj?.rooms||[];
+  if (!proj) { area.innerHTML = ""; return; }
+  ensureProjectShape(proj);
+  const rooms = proj.rooms||[];
   let html = `<div style="margin-bottom:14px">
     <div style="font-size:15px;font-weight:700;margin-bottom:4px">Room instances</div>
-    <div style="font-size:13px;color:var(--text3)">Add rooms as you walk through. Each gets its own repair groups.</div>
+    <div style="font-size:13px;color:var(--text3)">Add or remove rooms as you walk through. All room types from the brief are available here; the whole-house estimate sections also remain on the Estimate tab.</div>
   </div>`;
 
   if (!rooms.length) {
-    html += `<div class="empty"><div class="empty-icon">🏠</div><div class="empty-title">No rooms added yet</div><div class="empty-sub">Add bathrooms, bedrooms, and living areas below</div></div>`;
+    html += `<div class="empty"><div class="empty-icon">\uD83C\uDFE0</div><div class="empty-title">No room instances added yet</div><div class="empty-sub">Add bathrooms, bedrooms, living areas, kitchen, systems, exterior, or general interior areas below.</div></div>`;
   } else {
     rooms.forEach((room,idx)=>{
       const tpl = ROOM_TEMPLATES[room.type];
@@ -805,11 +913,12 @@ function renderRooms(area) {
       tpl.groups.forEach(grp=>{
         const gk = rk+"_"+grp.id;
         grp.itemIds.forEach(itemId=>{
+          if (isDeleted(proj, gk, itemId)) return;
           const ik = gk+":"+itemId;
           const st = proj.items[ik]||{};
-          if (st.checked) roomTotal += (st.qty||1)*(st.costOverride!=null?st.costOverride:resolvePrice(itemId,gk));
+          if (st.checked) roomTotal += (Number(st.qty)||1)*(st.costOverride!=null?Number(st.costOverride)||0:resolvePriceForProject(proj,itemId,gk));
         });
-        (proj.customItems[gk]||[]).forEach(ci=>{if(ci.checked)roomTotal+=(ci.qty||1)*ci.cost;});
+        (proj.customItems[gk]||[]).forEach(ci=>{if(ci.checked)roomTotal+=(Number(ci.qty)||1)*(Number(ci.cost)||0);});
       });
       html += `<div class="proj-card">
         <div class="proj-card-top">
@@ -826,10 +935,10 @@ function renderRooms(area) {
   }
 
   html += `<div style="margin-top:14px">
-    <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Add a room</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+    <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Add a room type</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       ${Object.entries(ROOM_TEMPLATES).map(([type,tpl])=>`
-        <button class="btn btn-secondary" style="flex-direction:column;height:64px;gap:4px;font-size:12px" onclick="addRoom('${type}')">
+        <button class="btn btn-secondary" style="flex-direction:column;height:68px;gap:4px;font-size:12px" onclick="addRoom('${type}')">
           <span style="font-size:22px">${tpl.icon}</span>
           ${esc(tpl.label)}
         </button>`).join("")}
@@ -840,6 +949,7 @@ function renderRooms(area) {
 }
 
 // ─── PHOTOS TAB ───────────────────────────────────────
+// PHOTOS TAB
 function renderPhotos(area) {
   const proj = activeProject();
   const photos = proj?.photos||[];
@@ -949,41 +1059,60 @@ function toggleCard(key, cardId) {
 function toggleItem(itemKey) {
   const proj = activeProject();
   if (!proj) return;
+  ensureProjectShape(proj);
+  const {groupKey, itemId} = splitItemKey(itemKey);
+  if (isDeleted(proj, groupKey, itemId)) return;
   if (!proj.items[itemKey]) proj.items[itemKey] = {};
   proj.items[itemKey].checked = !proj.items[itemKey].checked;
-  if (proj.items[itemKey].checked && !proj.items[itemKey].qty) proj.items[itemKey].qty = 1;
+  if (proj.items[itemKey].checked) {
+    if (!proj.items[itemKey].qty) proj.items[itemKey].qty = 1;
+    proj.noAction[groupKey] = false;
+  }
   save(); render();
 }
 function setQty(itemKey, val) {
   const proj = activeProject();
   if (!proj || !proj.items[itemKey]) return;
   proj.items[itemKey].qty = parseFloat(val)||0;
-  save(); updateStickyTotal(); updateProgress();
+  save(); render();
 }
 function toggleNoAction(groupKey) {
   const proj = activeProject();
-  proj.noAction[groupKey] = !proj.noAction[groupKey];
+  if (!proj) return;
+  ensureProjectShape(proj);
+  const next = !proj.noAction[groupKey];
+  proj.noAction[groupKey] = next;
+  if (next) {
+    Object.keys(proj.items||{}).forEach(k=>{
+      if (k.startsWith(groupKey+":")) proj.items[k].checked = false;
+    });
+    (proj.customItems[groupKey]||[]).forEach(ci=>{ ci.checked = false; });
+  }
   save(); render();
 }
 function toggleCustomItem(groupKey, idx) {
   const proj = activeProject();
+  if (!proj || !proj.customItems[groupKey]) return;
   proj.customItems[groupKey][idx].checked = !proj.customItems[groupKey][idx].checked;
+  if (proj.customItems[groupKey][idx].checked) proj.noAction[groupKey] = false;
   save(); render();
 }
 function setCustomQty(groupKey, idx, val) {
   const proj = activeProject();
+  if (!proj || !proj.customItems[groupKey]) return;
   proj.customItems[groupKey][idx].qty = parseFloat(val)||0;
-  save(); updateStickyTotal(); updateProgress();
+  save(); render();
 }
 function deleteItem(groupKey, itemId) {
   const proj = activeProject();
+  if (!proj) return;
+  ensureProjectShape(proj);
   const itemKey = groupKey+":"+itemId;
   delete proj.items[itemKey];
-  // Remove from group itemIds... we track deletions per-project
-  if (!proj._deletedItems) proj._deletedItems = {};
   if (!proj._deletedItems[groupKey]) proj._deletedItems[groupKey] = [];
-  proj._deletedItems[groupKey].push(itemId);
+  if (!proj._deletedItems[groupKey].includes(itemId)) proj._deletedItems[groupKey].push(itemId);
   save(); render();
+  toast("Item removed from this project");
 }
 function deleteCustomItem(groupKey, idx) {
   const proj = activeProject();
@@ -1000,18 +1129,24 @@ const roomCounts = {};
 function addRoom(type) {
   const proj = activeProject();
   const tpl = ROOM_TEMPLATES[type];
-  if (!tpl) return;
-  if (!roomCounts[proj.id]) roomCounts[proj.id] = {};
-  if (!roomCounts[proj.id][type]) roomCounts[proj.id][type] = 0;
-  roomCounts[proj.id][type]++;
-  const num = roomCounts[proj.id][type];
-  proj.rooms = proj.rooms||[];
-  proj.rooms.push({id:Date.now().toString(), type, label:`${tpl.label} ${num}`, num});
+  if (!proj || !tpl) return;
+  ensureProjectShape(proj);
+  const nextNum = (proj.rooms||[]).filter(r=>r.type===type).reduce((max,r)=>Math.max(max, Number(r.num)||0),0) + 1;
+  proj.rooms.push({id:Date.now().toString()+"_"+Math.random().toString(36).slice(2,6), type, label:`${tpl.label} ${nextNum}`, num:nextNum});
   save(); render();
-  toast(`${tpl.label} ${num} added`);
+  toast(`${tpl.label} ${nextNum} added`);
 }
 function removeRoom(idx) {
   const proj = activeProject();
+  if (!proj) return;
+  const room = proj.rooms[idx];
+  if (!room) return;
+  if (!confirm(`Remove ${room.label}? Its selections will be cleared from this project.`)) return;
+  const rk = "room_"+room.id;
+  Object.keys(proj.items||{}).forEach(k=>{ if (k.startsWith(rk+"_")) delete proj.items[k]; });
+  Object.keys(proj.customItems||{}).forEach(k=>{ if (k.startsWith(rk+"_")) delete proj.customItems[k]; });
+  Object.keys(proj.noAction||{}).forEach(k=>{ if (k.startsWith(rk+"_")) delete proj.noAction[k]; });
+  Object.keys(proj._deletedItems||{}).forEach(k=>{ if (k.startsWith(rk+"_")) delete proj._deletedItems[k]; });
   proj.rooms.splice(idx,1);
   save(); render();
 }
@@ -1146,9 +1281,16 @@ function renderProjectList() {
     </div>`).join("");
 }
 function calcProjectTotal(proj) {
+  ensureProjectShape(proj);
   let t=0;
-  Object.entries(proj.items||{}).forEach(([k,v])=>{if(!v.checked)return;const[gk,id]=k.split(":");const c=v.costOverride!=null?v.costOverride:resolvePrice(id,gk);t+=(v.qty||1)*c;});
-  Object.values(proj.customItems||{}).forEach(arr=>arr.forEach(ci=>{if(ci.checked)t+=(ci.qty||1)*ci.cost;}));
+  Object.entries(proj.items||{}).forEach(([k,v])=>{
+    if(!v.checked)return;
+    const {groupKey,itemId}=splitItemKey(k);
+    if (isDeleted(proj, groupKey, itemId)) return;
+    const c=v.costOverride!=null?Number(v.costOverride)||0:resolvePriceForProject(proj,itemId,groupKey);
+    t+=(Number(v.qty)||1)*c;
+  });
+  Object.values(proj.customItems||{}).forEach(arr=>(arr||[]).forEach(ci=>{if(ci.checked)t+=(Number(ci.qty)||1)*(Number(ci.cost)||0);}));
   return t;
 }
 
@@ -1170,36 +1312,40 @@ function switchTab(name, btn) {
   render();
 }
 
-async function exportZIP() {
-  const proj = activeProject();
-  if (!proj) return;
-  toast("Preparing export…");
 
-  if (typeof JSZip === "undefined" || typeof XLSX === "undefined") {
-    toast("Loading export libraries…");
-    await Promise.all([
-      loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"),
-      loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js")
-    ]);
-  }
-
-  const rows = [["Group","Item","Qty","Unit","Unit Cost","Line Total"]];
+function buildExportRows(proj) {
+  ensureProjectShape(proj);
+  const rows = [
+    ["Spark Homes Repair Estimate"],
+    ["Project", proj.name || "Untitled project"],
+    ["Created", proj.created || ""],
+    ["Exported", new Date().toLocaleString()],
+    ["Grand Total", calcTotal()],
+    ["Notes", getProjectNotes(proj)],
+    [],
+    ["Group","Item","Qty","Unit","Unit Cost","Line Total"]
+  ];
+  const pushLine = (groupLabel, itemName, qty, unit, cost) => {
+    qty = Number(qty)||1;
+    cost = Number(cost)||0;
+    rows.push([groupLabel, itemName, qty, unit || "", cost, qty*cost]);
+  };
   SECTIONS.forEach(sec=>{
     sec.groups.forEach(grp=>{
       const groupKey = sec.id+"_"+grp.id;
       grp.itemIds.forEach(itemId=>{
+        if (isDeleted(proj, groupKey, itemId)) return;
         const ik = groupKey+":"+itemId;
         const st = proj.items[ik]||{};
         if (!st.checked) return;
         const def = getItemDef(itemId);
         if (!def) return;
-        const cost = st.costOverride!=null?st.costOverride:resolvePrice(itemId,groupKey);
-        const qty = st.qty||1;
-        rows.push([sec.label+" > "+grp.label, def.name, qty, def.unit, cost, qty*cost]);
+        const cost = st.costOverride!=null ? Number(st.costOverride)||0 : resolvePriceForProject(proj,itemId,groupKey);
+        pushLine(sec.label+" > "+grp.label, def.name, st.qty||1, def.unit, cost);
       });
       (proj.customItems[groupKey]||[]).forEach(ci=>{
         if (!ci.checked) return;
-        rows.push([sec.label+" > "+grp.label, ci.name+" (custom)", ci.qty||1, ci.unit||"ea.", ci.cost, (ci.qty||1)*ci.cost]);
+        pushLine(sec.label+" > "+grp.label, ci.name+" (custom)", ci.qty||1, ci.unit||"ea.", ci.cost);
       });
     });
   });
@@ -1209,44 +1355,159 @@ async function exportZIP() {
     const rk = "room_"+room.id;
     tpl.groups.forEach(grp=>{
       const groupKey = rk+"_"+grp.id;
-        grp.itemIds.forEach(itemId=>{
+      grp.itemIds.forEach(itemId=>{
+        if (isDeleted(proj, groupKey, itemId)) return;
         const ik = groupKey+":"+itemId;
         const st = proj.items[ik]||{};
         if (!st.checked) return;
         const def = getItemDef(itemId);
         if (!def) return;
-        const cost = st.costOverride!=null?st.costOverride:resolvePrice(itemId,groupKey);
-        const qty = st.qty||1;
-        rows.push([room.label+" > "+grp.label, def.name, qty, def.unit, cost, qty*cost]);
-        });
+        const cost = st.costOverride!=null ? Number(st.costOverride)||0 : resolvePriceForProject(proj,itemId,groupKey);
+        pushLine(room.label+" > "+grp.label, def.name, st.qty||1, def.unit, cost);
+      });
+      (proj.customItems[groupKey]||[]).forEach(ci=>{
+        if (!ci.checked) return;
+        pushLine(room.label+" > "+grp.label, ci.name+" (custom)", ci.qty||1, ci.unit||"ea.", ci.cost);
+      });
     });
+  });
+  rows.push([]);
+  rows.push(["","","","","TOTAL", calcTotal()]);
+  return rows;
+}
+function xmlEscape(value) {
+  return String(value ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function excelCol(n) {
+  let s = "";
+  while (n >= 0) { s = String.fromCharCode((n % 26) + 65) + s; n = Math.floor(n / 26) - 1; }
+  return s;
+}
+function sheetXmlFromRows(rows) {
+  const sheetData = rows.map((row,r)=>{
+    const cells = row.map((v,c)=>{
+      if (v === null || v === undefined || v === "") return "";
+      const ref = excelCol(c)+(r+1);
+      if (typeof v === "number" && isFinite(v)) return `<c r="${ref}"><v>${v}</v></c>`;
+      return `<c r="${ref}" t="inlineStr"><is><t>${xmlEscape(v)}</t></is></c>`;
+    }).join("");
+    return `<row r="${r+1}">${cells}</row>`;
+  }).join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols><col min="1" max="1" width="34" customWidth="1"/><col min="2" max="2" width="48" customWidth="1"/><col min="3" max="6" width="14" customWidth="1"/></cols><sheetData>${sheetData}</sheetData></worksheet>`;
+}
+function makeXlsxBytes(rows) {
+  const files = [
+    {name:"[Content_Types].xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`},
+    {name:"_rels/.rels", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`},
+    {name:"xl/workbook.xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Repair Estimate" sheetId="1" r:id="rId1"/></sheets></workbook>`},
+    {name:"xl/_rels/workbook.xml.rels", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`},
+    {name:"xl/styles.xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs></styleSheet>`},
+    {name:"xl/worksheets/sheet1.xml", data:sheetXmlFromRows(rows)}
+  ];
+  return makeZipBytes(files);
+}
+const CRC_TABLE = (()=>{
+  const table = new Uint32Array(256);
+  for (let n=0;n<256;n++) {
+    let c=n;
+    for (let k=0;k<8;k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    table[n]=c>>>0;
+  }
+  return table;
+})();
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i=0;i<bytes.length;i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function textBytes(str) { return new TextEncoder().encode(String(str)); }
+function toBytes(data) {
+  if (data instanceof Uint8Array) return data;
+  if (data instanceof ArrayBuffer) return new Uint8Array(data);
+  return textBytes(data);
+}
+function u16(n) { return new Uint8Array([n & 255, (n>>>8) & 255]); }
+function u32(n) { return new Uint8Array([n & 255, (n>>>8) & 255, (n>>>16) & 255, (n>>>24) & 255]); }
+function dosTimeDate(date) {
+  const d = date || new Date();
+  const time = ((d.getHours() & 31) << 11) | ((d.getMinutes() & 63) << 5) | (Math.floor(d.getSeconds()/2) & 31);
+  const day = Math.max(1, d.getDate());
+  const dosDate = (((d.getFullYear()-1980) & 127) << 9) | (((d.getMonth()+1) & 15) << 5) | (day & 31);
+  return {time, date:dosDate};
+}
+function concatBytes(parts) {
+  const len = parts.reduce((s,p)=>s+p.length,0);
+  const out = new Uint8Array(len);
+  let off=0;
+  parts.forEach(p=>{ out.set(p,off); off+=p.length; });
+  return out;
+}
+function makeZipBytes(fileEntries) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  const dt = dosTimeDate(new Date());
+  fileEntries.forEach(entry=>{
+    const nameBytes = textBytes(entry.name);
+    const data = toBytes(entry.data);
+    const crc = crc32(data);
+    const local = concatBytes([u32(0x04034b50), u16(20), u16(0), u16(0), u16(dt.time), u16(dt.date), u32(crc), u32(data.length), u32(data.length), u16(nameBytes.length), u16(0), nameBytes, data]);
+    localParts.push(local);
+    const central = concatBytes([u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(dt.time), u16(dt.date), u32(crc), u32(data.length), u32(data.length), u16(nameBytes.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset), nameBytes]);
+    centralParts.push(central);
+    offset += local.length;
+  });
+  const centralSize = centralParts.reduce((s,p)=>s+p.length,0);
+  const end = concatBytes([u32(0x06054b50), u16(0), u16(0), u16(fileEntries.length), u16(fileEntries.length), u32(centralSize), u32(offset), u16(0)]);
+  return concatBytes([...localParts, ...centralParts, end]);
+}
+function dataUrlToBytes(dataUrl) {
+  const parts = String(dataUrl||"").split(",");
+  const b64 = parts[1] || "";
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+async function exportZIP() {
+  const proj = activeProject();
+  if (!proj) return;
+  ensureProjectShape(proj);
+  toast("Preparing offline export...");
+  try {
+    const safe = sanitizeFileName(proj.name);
+    const rows = buildExportRows(proj);
+    const xlsxBytes = makeXlsxBytes(rows);
+    const zipFiles = [
+      {name:`${safe}_estimate.xlsx`, data:xlsxBytes},
+      {name:`${safe}_notes.txt`, data:`Project: ${proj.name || "Untitled project"}\nCreated: ${proj.created || ""}\nExported: ${new Date().toLocaleString()}\nTotal: ${fmtD(calcTotal())}\n\nNotes:\n${getProjectNotes(proj) || "No notes entered."}\n`}
+    ];
+    (proj.photos||[]).forEach((ph,i)=>{
+      if (!ph.dataUrl) return;
+      const mime = (ph.dataUrl.match(/^data:([^;]+)/)||[])[1] || "image/jpeg";
+      const ext = (mime.split("/")[1] || "jpg").replace("jpeg","jpg");
+      zipFiles.push({name:`photos/photo_${String(i+1).padStart(2,"0")}.${ext}`, data:dataUrlToBytes(ph.dataUrl)});
+      if (ph.serial) zipFiles.push({name:`photos/photo_${String(i+1).padStart(2,"0")}_serial.txt`, data:`Serial number parsed from filename: ${ph.serial}`});
     });
-    rows.push([]);
-    rows.push(["","","","","TOTAL", calcTotal()]);
-
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws["!cols"] = [{wch:30},{wch:40},{wch:8},{wch:20},{wch:12},{wch:12}];
-    XLSX.utils.book_append_sheet(wb, ws, "Repair Estimate");
-    const xlsxBuf = XLSX.write(wb, {bookType:"xlsx", type:"array"});
-
-    const zip = new JSZip();
-    zip.file(`${proj.name.replace(/[^a-z0-9]/gi,"_")}_estimate.xlsx`, xlsxBuf);
-    const photos = proj.photos||[];
-    photos.forEach((ph,i)=>{
-        const ext = ph.dataUrl.split(";")[0].split("/")[1]||"jpg";
-        const b64 = ph.dataUrl.split(",")[1];
-        zip.file(`photo_${i+1}.${ext}`, b64, {base64: true});
-    });
-
-    const blob = await zip.generateAsync({type:"blob"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${proj.name.replace(/[^a-z0-9]/gi,"_")}_repair_estimate.zip`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast("Export downloaded ✓");
+    const zipBytes = makeZipBytes(zipFiles);
+    downloadBlob(new Blob([zipBytes],{type:"application/zip"}), `${safe}_repair_estimate.zip`);
+    toast("Export downloaded");
+  } catch (err) {
+    console.error(err);
+    toast("Export failed. Try again.");
+  }
 }
 
 function loadScript(src) {
@@ -1275,23 +1536,40 @@ document.querySelectorAll(".modal-backdrop").forEach(m=>{
     m.addEventListener("click",e=>{if(e.target===m)m.classList.remove("open");});
 });
 
-const SW_SRC = `
-const CACHE="spark-v1";
-const ASSETS=["/"];
-self.addEventListener("install",e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
-self.addEventListener("activate",e=>e.waitUntil(clients.claim()));
-self.addEventListener("fetch",e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).catch(()=>caches.match("/")))));
-`;
-if ("serviceWorker" in navigator) {
-    const blob = new Blob([SW_SRC],{type:"application/javascript"});
-    const swUrl = URL.createObjectURL(blob);
-    navigator.serviceWorker.register(swUrl,{scope:"/"}).catch(()=>{});
+function setupManifest() {
+  const manifest = {
+    name:"Spark Repair Estimator",
+    short_name:"Spark Homes",
+    start_url:"./index.html",
+    scope:"./",
+    display:"standalone",
+    background_color:"#F5F4F1",
+    theme_color:"#C24B0F",
+    icons:[{src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='36' fill='%23C24B0F'/%3E%3Ctext x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' font-size='110'%3E%F0%9F%94%A5%3C/text%3E%3C/svg%3E",sizes:"192x192",type:"image/svg+xml"}]
+  };
+  const link = document.getElementById("manifest-link");
+  if (!link) return;
+  const blobHref = URL.createObjectURL(new Blob([JSON.stringify(manifest)],{type:"application/manifest+json"}));
+  if (location.protocol === "http:" || location.protocol === "https:") {
+    fetch("manifest.webmanifest", {method:"HEAD", cache:"no-store"}).then(r=>{ link.href = r.ok ? "manifest.webmanifest" : blobHref; }).catch(()=>{ link.href = blobHref; });
+  } else {
+    link.href = blobHref;
+  }
 }
-
-const MANIFEST = {name:"Spark Repair Estimator",short_name:"Spark Homes",start_url:"/",display:"standalone",background_color:"#F5F4F1",theme_color:"#C24B0F",icons:[{src:"data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 192 192\'><rect width=\'192\' height=\'192\' rx=\'36\' fill=\'%23C24B0F\'/><text x=\'50%\' y=\'55%\' dominant-baseline=\'middle\' text-anchor=\'middle\' font-size=\'110\'>🔥</text></svg>",sizes:"192x192",type:"image/svg+xml"}]};
-const mBlob = new Blob([JSON.stringify(MANIFEST)],{type:"application/json"});
-document.getElementById("manifest-link").href = URL.createObjectURL(mBlob);
-
+function setupServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  const canRegister = location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1";
+  if (!canRegister) return;
+  navigator.serviceWorker.register("./sw.js", {scope:"./"}).catch(()=>{
+    const inlineSW = `const CACHE="spark-repair-estimator-inline-v1";self.addEventListener("install",e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(["./","./index.html"])).then(()=>self.skipWaiting()))});self.addEventListener("activate",e=>e.waitUntil(self.clients.claim()));self.addEventListener("fetch",e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).catch(()=>caches.match("./index.html"))))});`;
+    try {
+      const swUrl = URL.createObjectURL(new Blob([inlineSW],{type:"application/javascript"}));
+      navigator.serviceWorker.register(swUrl,{scope:"./"}).catch(()=>{});
+    } catch(e) {}
+  });
+}
+setupManifest();
+setupServiceWorker();
 load();
 applyTheme();
 SECTIONS.forEach(sec=>sec.groups.forEach(grp=>{ cardState["grp_"+sec.id+"_"+grp.id]=true; }));
